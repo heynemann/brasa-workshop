@@ -1,0 +1,23 @@
+.userImageRoot {
+  position: fixed;
+  top: 20px;
+  right: 40px;
+  display: flex;
+}
+
+.name {
+  height: 64px;
+  font-size: 24px;
+}
+
+.picture img {
+  border-radius: 32px;
+  width: 64px;
+  height: 64px;
+  margin-right: 10px;
+}
+
+.logout button {
+  padding: 4px 12px;
+  width: 100%;
+}
