@@ -1,0 +1,9 @@
+{
+  "name": "brasa-workshop",
+  "version": "1.0.0",
+  "description": "Workshop para a Brasa",
+  "main": "index.js",
+  "repository": "git@github.com:heynemann/brasa-workshop.git",
+  "author": "Bernardo Heynemann <heynemann@gmail.com>",
+  "license": "MIT"
+}
