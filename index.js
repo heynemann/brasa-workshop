@@ -4,41 +4,61 @@ const { buildSchema } = require('graphql')
 
 // Novamente mesma função para construir nosso schema
 const schema = buildSchema(`
-  type RandomDie {
-    numSides: Int!
-    rollOnce: Int!
-    roll(numRolls: Int!): [Int]
+  input MessageInput {
+    content: String
+    author: String
+  }
+
+  type Message {
+    id: ID!
+    content: String
+    author: String
   }
 
   type Query {
-    getDie(numSides: Int): RandomDie
+    getMessage(id: ID!): Message
+  }
+
+  type Mutation {
+    createMessage(input: MessageInput): Message
+    updateMessage(id: ID!, input: MessageInput): Message
   }
 `)
 
-// Essa é a classe que implementa o tipo RandomDie
-// do nosso schema
-class RandomDie {
-  constructor(numSides) {
-    this.numSides = numSides
-  }
-
-  rollOnce() {
-    return 1 + Math.floor(Math.random() * this.numSides)
-  }
-
-  roll({ numRolls }) {
-    var output = []
-    for (var i = 0; i < numRolls; i++) {
-      output.push(this.rollOnce())
-    }
-    return output
+// Se o tipo Message tivesse qualquer campo complexo (métodos),
+// colocaríamos nessa classe.
+class Message {
+  constructor(id, { content, author }) {
+    this.id = id
+    this.content = content
+    this.author = author
   }
 }
 
-// Precisamos prover o campo que inicializa a classe RandomDie
+// Mapeia username ao conteúdo
+var fakeDatabase = {}
+
 var root = {
-  getDie: ({ numSides }) => {
-    return new RandomDie(numSides || 6)
+  getMessage: ({ id }) => {
+    if (!fakeDatabase[id]) {
+      throw new Error(`Não existem mensagens com id ${id}`)
+    }
+    return new Message(id, fakeDatabase[id])
+  },
+  createMessage: ({ input }) => {
+    // Cria uma id aleatório para o nosso "banco de dados".
+    const id = require('crypto').randomBytes(10).toString('hex')
+
+    fakeDatabase[id] = input
+    return new Message(id, input)
+  },
+  updateMessage: ({ id, input }) => {
+    if (!fakeDatabase[id]) {
+      throw new Error(`Não existem mensagens com id ${id} para alterar`)
+    }
+    // Isso substitui o dado anterior completamente.
+    fakeDatabase[id] = input
+    return new Message(id, input)
   },
 }
 
