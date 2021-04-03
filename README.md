@@ -37,17 +37,17 @@ No diretório em que está o repositório, nós vamos instalar a biblioteca Grap
 Agora vamos validar a instalação com o Hello World do GraphQL. Em um arquivo chamado index.js vamos colocar o seguinte:
 
 ```
-var { graphql, buildSchema } = require('graphql')
+const { graphql, buildSchema } = require('graphql')
 
 // Criando o schema, usando a linguagem de schemas do GraphQL
-var schema = buildSchema(`
+const schema = buildSchema(`
   type Query {
     hello: String
   }
 `)
 
 // O objeto root precisa prover resolvers para todos os métodos do schema
-var root = {
+const root = {
   hello: () => {
     return 'Hello world!'
   },
@@ -88,26 +88,26 @@ O primeiro passo é instalar as dependências:
 Agora voltando ao nosso `index.js`, vamos mudar para usar express:
 
 ```
-var express = require('express') // Web Framework
-var { graphqlHTTP } = require('express-graphql') // Ponte entre GraphQL e Express
-var { buildSchema } = require('graphql') // Mesma função que usamos no passo 1
+const express = require('express') // Web Framework
+const { graphqlHTTP } = require('express-graphql') // Ponte entre GraphQL e Express
+const { buildSchema } = require('graphql') // Mesma função que usamos no passo 1
 
 // Novamente mesma função para construir nosso schema
-var schema = buildSchema(`
+const schema = buildSchema(`
   type Query {
     hello: String
   }
 `)
 
 // Novamente precisamos prover o que deve ser executado em cada resolver
-var root = {
+const root = {
   hello: () => {
     return 'Hello world!'
   },
 }
 
 // Agora configuramos o express para usar o nosso schema GraphQL
-var app = express()
+const app = express()
 app.use(
   '/graphql',
   graphqlHTTP({
@@ -152,12 +152,12 @@ No nosso caso, em que estamos usando JavaScript, cada um dos tipos mapeia direta
 Vamos mudar o nosso `index.js` para ver os tipos escalares em uso:
 
 ```
-var express = require('express')
-var { graphqlHTTP } = require('express-graphql')
-var { buildSchema } = require('graphql')
+const express = require('express')
+const { graphqlHTTP } = require('express-graphql')
+const { buildSchema } = require('graphql')
 
 // Novamente mesma função para construir nosso schema
-var schema = buildSchema(`
+const schema = buildSchema(`
   type Query {
     quoteOfTheDay: String
     random: Float!
@@ -166,7 +166,7 @@ var schema = buildSchema(`
 `)
 
 // Novamente precisamos prover o que deve ser executado em cada resolver
-var root = {
+const root = {
   quoteOfTheDay: () => {
     return Math.random() < 0.5 ? 'Vai com calma!' : 'Agora vai!'
   },
@@ -179,7 +179,7 @@ var root = {
 }
 
 // Agora configuramos o express para usar o nosso schema GraphQL
-var app = express()
+const app = express()
 app.use(
   '/graphql',
   graphqlHTTP({
@@ -201,9 +201,135 @@ Basta rodar novamente `node index.js` e acessar http://localhost:4000/graphql no
 
 Estes três exemplos de queries mostram como APIs GraphQL podem retornar tipos diferentes.
 
-![GraphiQL](/graphiql.png)
+![GraphiQL](/graphiql2.png)
 
 Na imagem acima, podemos ver algumas coisas interessantes:
 
 - Primeiro uma das capacidades mais relevantes do GraphQL, que é poder fazer múltiplas queries em uma mesma requisição. No exemplo da imagem, estamos pedindo a `quoteOfTheDay`, `random`e `rollThreeDice` em uma mesma requisição. Essa capacidade é muito importante para performance, principalmente em aplicações web mobile, onde cada requisição tem um impacto grande em performance.
 - Além disso, se você olhar no canto direito vai ver uma documentação das funções que são exportadas pelo nosso schema. Isso é proposital. O modelo que o GraphQL segue é inspecionável, isto é, permite que programaticamente possamos descobrir quais funções, campos, objetos, existem no nosso schema. É assim que o GraphiQL consegue prover essa documentação e o autocomplete, bem como validar se nossa query faz sentido para esse schema.
+
+## Passo 4
+
+Assim como APIs REST, é bem comum passar argumentos para uma função GraphQL. Nós definimos os argumentos que podem ser usados no schema, e a validação dos tipos acontece automaticamente. Cada argumento precisa ser nomeado e ter um tipo. Por exemplo, no passo 3 nós tínhamos uma função chamada `rollThreeDice`:
+
+```
+type Query {
+  rollThreeDice: [Int]
+}
+```
+
+Ao invés de fixar que vão ser 3 dados, nós poderíamos ter uma forma mais genérica que rola `numDice` dados, cada um tendo `numSides` lados. O nosso schema fica assim:
+
+```
+type Query {
+  rollDice(numDice: Int!, numSides: Int): [Int]
+}
+```
+
+A exclamação em `Int!` indica que `numDice` não pode ser nulo, o que permite que pulemos um pouco da validação no nosso resolver. Podemos deixar numSides ser nulo e assumir 6 lados como padrão, caso isso aconteça.
+
+Até agora nosso resolver (função que implementa o schema) não recebia argumentos. Quando um resolver recebe argumentos, eles são passados como um objeto chamado "args", como primeiro argumento da nossa função. Logo a implementação de rollDice poderia ser algo como:
+
+```
+const root = {
+  rollDice: (args) => {
+    const output = [];
+    for (let i = 0; i < args.numDice; i++) {
+      output.push(1 + Math.floor(Math.random() * (args.numSides || 6)));
+    }
+    return output;
+  }
+};
+```
+
+Vamos atualizar nosso `index.js` para cobrir a nossa nova função:
+
+```
+const express = require('express');
+const { graphqlHTTP } = require('express-graphql');
+const { buildSchema } = require('graphql');
+ 
+// Construct a schema, using GraphQL schema language
+const schema = buildSchema(`
+  type Query {
+    rollDice(numDice: Int!, numSides: Int): [Int]
+  }
+`);
+ 
+// The root provides a resolver function for each API endpoint
+const root = {
+  rollDice: ({numDice, numSides}) => {
+    const output = [];
+    for (let i = 0; i < numDice; i++) {
+      output.push(1 + Math.floor(Math.random() * (numSides || 6)));
+    }
+    return output;
+  }
+};
+ 
+const app = express();
+app.use('/graphql', graphqlHTTP({
+  schema: schema,
+  rootValue: root,
+  graphiql: true,
+}));
+app.listen(4000);
+console.log('Running a GraphQL API server at localhost:4000/graphql');
+```
+
+Quando chamarmos esta API, precisamos passar os argumentos usando seus nomes e tipos corretos. 
+
+Caso tentemos chamar nossa nova query sem passar os argumentos, recebemos um erro como o abaixo:
+
+![GraphiQL](/graphiql3.png)
+
+Para a nossa implementação, uma query possível para rolar três dados de seis lados poderia ser:
+
+```
+{
+  rollDice(numDice: 3, numSides: 6)
+}
+```
+
+![GraphiQL](/graphiql4.png)
+
+
+Quando formos passar os argumentos em código, o ideal é evitar construir a query inteira nós mesmos. Ao invés disso podemos usar a sintaxe de `$` para definir variáveis em nossa query, e passar as variáveis em um objeto separado.
+
+Por exemplo, vamos colocar o seguinte código em um arquivo `client.js`:
+
+```
+const fetch = require('node-fetch')
+
+const dice = 3
+const sides = 6
+const query = `query RollDice($dice: Int!, $sides: Int) {
+  rollDice(numDice: $dice, numSides: $sides)
+}`
+
+fetch('http://localhost:4000/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+  body: JSON.stringify({
+    query,
+    variables: { dice, sides },
+  }),
+})
+  .then((r) => r.json())
+  .then((data) => console.log('resultado:', data))
+```
+
+Usando `$dice` e `$sides` como variáveis em GraphQL significa que não temos que nos preocupar com escapar variáveis do lado do cliente.
+
+Para que nosso cliente funcione, é necessário instalar a biblioteca `node-fetch` que implementa a função `fetch` para node-js.
+
+Agora nosso teste final. Em uma aba do terminal rode `node index.js` e espere o nosso servidor estar rodando. Em outra aba, digite `node client.js`. Você deve ver algo como:
+
+```
+resultado: { data: { rollDice: [ 1, 4, 5 ] } }
+```
+
+Como podemos ver, uma requisição para uma API GraphQL é simplesmente uma requisição HTTP. Apesar do protocolo HTTP não ser obrigatório para GraphQL (pode ser usado qualquer protocolo de comunicação), é definitivamente a implementação mais comum.
