@@ -24,6 +24,18 @@ Digite então `yarn --version` e você deve ver algo como:
 1.22.10
 ```
 
+## Introdução
+
+GraphQL é um protocolo de consulta e escrita de dados em grafos criado pelo Facebook. Apesar do propósito original de uso em grafos, hoje em dia é um protocolo usado por muitas empresas para queries em dados dos mais divesos tipos. Algumas vantagens de se usar GraphQL:
+
+* Performance - os clientes da sua API podem especificar exatamente que dados precisam (e somente esses) em uma única requisição. O servidor não precisa processar nem transmitir dados que não sejam necessários. Se o cliente só precisa do ID porque estamos retornando um monte de campos desnecessários? Você vai ver mais vantagens relacionadas a várias queries em uma mesma requisição mais abaixo.
+* Acoplamento - pela natureza do protocolo, o servidor descreve quais tipos e operações estão disponíveis e o cliente usa da forma mais adequada. Nem servidor, nem cliente precisam saber nada um sobre o outro além do que o contrato entre eles define (o schema).
+* Tipos Fortes - a linguagem de schema do GraphQL é toda tipada e isso elimina uma boa parte do código necessário para validar argumentos passados para as APIs, tornando assim o código do serviço mais simples.
+
+Apesar de ser possível ter as mesmas vantagens com REST é mais explícita a forma de implementar esse tipo de API usando GraphQL.
+
+Agora o que é GraphQL? Melhor forma de demonstrar é ver funcionando! Vamos aos passos.
+
 ## Passo 1
 
 Neste passo vamos deixar a infra-estrutura base do nosso projeto funcionando para poder evoluir até chegar no nosso servidor GraphQL.
