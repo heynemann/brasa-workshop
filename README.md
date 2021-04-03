@@ -333,3 +333,158 @@ resultado: { data: { rollDice: [ 1, 4, 5 ] } }
 ```
 
 Como podemos ver, uma requisição para uma API GraphQL é simplesmente uma requisição HTTP. Apesar do protocolo HTTP não ser obrigatório para GraphQL (pode ser usado qualquer protocolo de comunicação), é definitivamente a implementação mais comum.
+
+## Passo 5
+
+Em muitos casos, você não quer retornar um número ou uma string na sua API. O que você quer é voltar um objeto que tem seu próprio comportamento. GraphQL é perfeito pra isso!
+
+Na linguagem de schema, o jeito de definir um tipo novo de objeto é o mesmo que nós já usamos no tipo `Query` nos exemplos anteriores. Cada objeto pode ter campos que retornam um tipo específico, e métodos que recebem argumentos.
+
+Lembrando nosso exemplo dos dados anterior:
+
+```
+type Query {
+  rollDice(numDice: Int!, numSides: Int): [Int]
+}
+```
+
+Se nós quiséssemos adicionar mais métodos no nosso dado aleatório, nós poderíamos implementar um tipo `RandomDie` ao invés de retornar tipos escalares:
+
+```
+type RandomDie {
+  roll(numRolls: Int!): [Int]
+}
+ 
+type Query {
+  getDie(numSides: Int): RandomDie
+}
+```
+
+Ao invés de ter um resolver no nosso objeto root, nós podemos usar uma class ES6, onde os resolvers são métodos de instância. O código abaixo mostra como isso ficaria:
+
+```
+class RandomDie {
+  constructor(numSides) {
+    this.numSides = numSides;
+  }
+ 
+  rollOnce() {
+    return 1 + Math.floor(Math.random() * this.numSides);
+  }
+ 
+  roll({numRolls}) {
+    const output = [];
+    for (let i = 0; i < numRolls; i++) {
+      output.push(this.rollOnce());
+    }
+    return output;
+  }
+}
+ 
+const root = {
+  getDie: ({numSides}) => {
+    return new RandomDie(numSides || 6);
+  }
+}
+```
+
+Para campos que não usam argumentos, podemos usar propriedades ou métodos. Tanto faz! Logo para o exemplo acima, tanto `numSides` quanto `rollOnce` podem ser usados para implementar campos. Repare que `rollOnce` é um campo novo e temos que ajustar nosso schema, para que esse campo esteja disponível em queries:
+
+```
+type RandomDie {
+  numSides: Int!
+  rollOnce: Int!
+  roll(numRolls: Int!): [Int]
+}
+ 
+type Query {
+  getDie(numSides: Int): RandomDie
+}
+```
+
+Isso ilustra como é fácil evoluir nosso schema. Basta acrescentar no schema e implementar o resolver correspondente.
+
+Voltando ao nosso `index.js`:
+
+```
+const express = require('express')
+const { graphqlHTTP } = require('express-graphql')
+const { buildSchema } = require('graphql')
+
+// Novamente mesma função para construir nosso schema
+const schema = buildSchema(`
+  type RandomDie {
+    numSides: Int!
+    rollOnce: Int!
+    roll(numRolls: Int!): [Int]
+  }
+
+  type Query {
+    getDie(numSides: Int): RandomDie
+  }
+`)
+
+// Essa é a classe que implementa o tipo RandomDie
+// do nosso schema
+class RandomDie {
+  constructor(numSides) {
+    this.numSides = numSides
+  }
+
+  rollOnce() {
+    return 1 + Math.floor(Math.random() * this.numSides)
+  }
+
+  roll({ numRolls }) {
+    var output = []
+    for (var i = 0; i < numRolls; i++) {
+      output.push(this.rollOnce())
+    }
+    return output
+  }
+}
+
+// Precisamos prover o campo que inicializa a classe RandomDie
+var root = {
+  getDie: ({ numSides }) => {
+    return new RandomDie(numSides || 6)
+  },
+}
+
+// Agora configuramos o express para usar o nosso schema GraphQL
+const app = express()
+app.use(
+  '/graphql',
+  graphqlHTTP({
+    schema: schema,
+    rootValue: root,
+    graphiql: true,
+  })
+)
+app.listen(4000)
+
+console.log('API GraphQL está rodando em http://localhost:4000/graphql...')
+console.log()
+console.log(
+  'Para acessar o GraphiQL basta colocar http://localhost:4000/graphql no seu browser.'
+)
+```
+
+Quando fazemos queries em uma API que retorna um objeto, podemos chamar múltiplos métodos no objeto ao mesmo tempo aninhando os nomes dos campos.
+
+Por exemplo, para chamar ambos `rollOnce` e `roll` ao mesmo tempo:
+
+```
+{
+  getDie(numSides: 6) {
+    rollOnce
+    roll(numRolls: 4)
+  }
+}
+```
+
+Ao rodar essa query o resultado deve ser similar ao abaixo:
+
+![GraphiQL](/graphiql5.png)
+
+Essa maneira de definir tipos complexos muitas vezes provê vantagens sobre uma API REST. Ao invés de fazer uma requisição para obter dados básicos de um objeto, depois múltiplas outras para obter mais informações, você pode pegar toda a informação necessária de uma vez só. Isso salva banda, ganhando performance e simplifica a lógica do lado do cliente.

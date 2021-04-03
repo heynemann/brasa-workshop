@@ -4,27 +4,41 @@ const { buildSchema } = require('graphql')
 
 // Novamente mesma função para construir nosso schema
 const schema = buildSchema(`
+  type RandomDie {
+    numSides: Int!
+    rollOnce: Int!
+    roll(numRolls: Int!): [Int]
+  }
+
   type Query {
-    quoteOfTheDay: String
-    random: Float!
-		rollDice(numDice: Int!, numSides: Int): [Int]
+    getDie(numSides: Int): RandomDie
   }
 `)
 
-// Novamente precisamos prover o que deve ser executado em cada resolver
-const root = {
-  quoteOfTheDay: () => {
-    return Math.random() < 0.5 ? 'Vai com calma!' : 'Agora vai!'
-  },
-  random: () => {
-    return Math.random()
-  },
-  rollDice: (args) => {
-    const output = []
-    for (let i = 0; i < args.numDice; i++) {
-      output.push(1 + Math.floor(Math.random() * (args.numSides || 6)))
+// Essa é a classe que implementa o tipo RandomDie
+// do nosso schema
+class RandomDie {
+  constructor(numSides) {
+    this.numSides = numSides
+  }
+
+  rollOnce() {
+    return 1 + Math.floor(Math.random() * this.numSides)
+  }
+
+  roll({ numRolls }) {
+    var output = []
+    for (var i = 0; i < numRolls; i++) {
+      output.push(this.rollOnce())
     }
     return output
+  }
+}
+
+// Precisamos prover o campo que inicializa a classe RandomDie
+var root = {
+  getDie: ({ numSides }) => {
+    return new RandomDie(numSides || 6)
   },
 }
 
