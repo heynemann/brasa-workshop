@@ -135,4 +135,75 @@ Para acessar o GraphiQL basta colocar http://localhost:4000/graphql no seu brows
 
 Indo até esse endereço no browser, deve aparecer a interface do GraphiQL. Digite a query abaixo e aperte o botão de play. O resultado deve ser similar ao visto na imagem.
 
-![GitHub Logo](/graphiql.png)
+![GraphiQL](/graphiql.png)
+
+## Passo 3
+
+Na maioria dos casos, tudo que vamos precisar é especificar os tipos para a API usando o schema do GraphQL (aquele que passamos para a função `buildSchema`).
+
+A linguagem de schema do GraphQL suporta os tipos escalares `String`, `Int`, `Float`, `Boolean`, e `ID`, e você pode usar esses diretamente no schema que é passado para a `buildSchema`.
+
+Por padrão, todos os tipos são `nullable` - ou seja, é legítimo retornar `null` para qualquer um dos tipos escalares. No caso de querermos dizer que um tipo não pode ser nulo, vamos adicionar uma exclamação no como sufixo, como por exemplo `String!` para nos referirmos a uma string non-nullable.
+
+Para usar um tipo de lista (0 ou mais itens em um array), vamos usar colchetes, logo `[Int]` é uma lista de inteiros.
+
+No nosso caso, em que estamos usando JavaScript, cada um dos tipos mapeia diretamente para um tipo em JavaScript, logo você pode retornar exatamente o que usamos em JS (para inteiro, usamos inteiro, string usa string e assim por diante).
+
+Vamos mudar o nosso `index.js` para ver os tipos escalares em uso:
+
+```
+var express = require('express')
+var { graphqlHTTP } = require('express-graphql')
+var { buildSchema } = require('graphql')
+
+// Novamente mesma função para construir nosso schema
+var schema = buildSchema(`
+  type Query {
+    quoteOfTheDay: String
+    random: Float!
+    rollThreeDice: [Int]
+  }
+`)
+
+// Novamente precisamos prover o que deve ser executado em cada resolver
+var root = {
+  quoteOfTheDay: () => {
+    return Math.random() < 0.5 ? 'Vai com calma!' : 'Agora vai!'
+  },
+  random: () => {
+    return Math.random()
+  },
+  rollThreeDice: () => {
+    return [1, 2, 3].map((_) => 1 + Math.floor(Math.random() * 6))
+  },
+}
+
+// Agora configuramos o express para usar o nosso schema GraphQL
+var app = express()
+app.use(
+  '/graphql',
+  graphqlHTTP({
+    schema: schema,
+    rootValue: root,
+    graphiql: true,
+  })
+)
+app.listen(4000)
+
+console.log('API GraphQL está rodando em http://localhost:4000/graphql...')
+console.log()
+console.log(
+  'Para acessar o GraphiQL basta colocar http://localhost:4000/graphql no seu browser.'
+)
+```
+
+Basta rodar novamente `node index.js` e acessar http://localhost:4000/graphql no seu browser para ver as novas queries.
+
+Estes três exemplos de queries mostram como APIs GraphQL podem retornar tipos diferentes.
+
+![GraphiQL](/graphiql.png)
+
+Na imagem acima, podemos ver algumas coisas interessantes:
+
+- Primeiro uma das capacidades mais relevantes do GraphQL, que é poder fazer múltiplas queries em uma mesma requisição. No exemplo da imagem, estamos pedindo a `quoteOfTheDay`, `random`e `rollThreeDice` em uma mesma requisição. Essa capacidade é muito importante para performance, principalmente em aplicações web mobile, onde cada requisição tem um impacto grande em performance.
+- Além disso, se você olhar no canto direito vai ver uma documentação das funções que são exportadas pelo nosso schema. Isso é proposital. O modelo que o GraphQL segue é inspecionável, isto é, permite que programaticamente possamos descobrir quais funções, campos, objetos, existem no nosso schema. É assim que o GraphiQL consegue prover essa documentação e o autocomplete, bem como validar se nossa query faz sentido para esse schema.

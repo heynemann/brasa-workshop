@@ -1,18 +1,26 @@
-var express = require('express') // Web Framework
-var { graphqlHTTP } = require('express-graphql') // Ponte entre GraphQL e Express
-var { buildSchema } = require('graphql') // Mesma função que usamos no passo 1
+var express = require('express')
+var { graphqlHTTP } = require('express-graphql')
+var { buildSchema } = require('graphql')
 
 // Novamente mesma função para construir nosso schema
 var schema = buildSchema(`
   type Query {
-    hello: String
+    quoteOfTheDay: String
+    random: Float!
+    rollThreeDice: [Int]
   }
 `)
 
 // Novamente precisamos prover o que deve ser executado em cada resolver
 var root = {
-  hello: () => {
-    return 'Hello world!'
+  quoteOfTheDay: () => {
+    return Math.random() < 0.5 ? 'Vai com calma!' : 'Agora vai!'
+  },
+  random: () => {
+    return Math.random()
+  },
+  rollThreeDice: () => {
+    return [1, 2, 3].map((_) => 1 + Math.floor(Math.random() * 6))
   },
 }
 
@@ -23,7 +31,7 @@ app.use(
   graphqlHTTP({
     schema: schema,
     rootValue: root,
-    graphiql: true, // GraphiQL é uma interface que permite explorar nosso grafo
+    graphiql: true,
   })
 )
 app.listen(4000)
