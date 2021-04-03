@@ -24,6 +24,18 @@ Digite então `yarn --version` e você deve ver algo como:
 1.22.10
 ```
 
+## Introdução
+
+GraphQL é um protocolo de consulta e escrita de dados em grafos criado pelo Facebook. Apesar do propósito original de uso em grafos, hoje em dia é um protocolo usado por muitas empresas para queries em dados dos mais divesos tipos. Algumas vantagens de se usar GraphQL:
+
+* Performance - os clientes da sua API podem especificar exatamente que dados precisam (e somente esses) em uma única requisição. O servidor não precisa processar nem transmitir dados que não sejam necessários. Se o cliente só precisa do ID porque estamos retornando um monte de campos desnecessários? Você vai ver mais vantagens relacionadas a várias queries em uma mesma requisição mais abaixo.
+* Acoplamento - pela natureza do protocolo, o servidor descreve quais tipos e operações estão disponíveis e o cliente usa da forma mais adequada. Nem servidor, nem cliente precisam saber nada um sobre o outro além do que o contrato entre eles define (o schema).
+* Tipos Fortes - a linguagem de schema do GraphQL é toda tipada e isso elimina uma boa parte do código necessário para validar argumentos passados para as APIs, tornando assim o código do serviço mais simples.
+
+Apesar de ser possível ter as mesmas vantagens com REST é mais explícita a forma de implementar esse tipo de API usando GraphQL.
+
+Agora o que é GraphQL? Melhor forma de demonstrar é ver funcionando! Vamos aos passos.
+
 ## Passo 1
 
 Neste passo vamos deixar a infra-estrutura base do nosso projeto funcionando para poder evoluir até chegar no nosso servidor GraphQL.
@@ -488,3 +500,208 @@ Ao rodar essa query o resultado deve ser similar ao abaixo:
 ![GraphiQL](/graphiql5.png)
 
 Essa maneira de definir tipos complexos muitas vezes provê vantagens sobre uma API REST. Ao invés de fazer uma requisição para obter dados básicos de um objeto, depois múltiplas outras para obter mais informações, você pode pegar toda a informação necessária de uma vez só. Isso salva banda, ganhando performance e simplifica a lógica do lado do cliente.
+
+## Passo 6
+
+Até o momento nós vimos como fazer queries, mas uma parte importante de fazer APIs é modificar dados. Exemplos são inserir ou alterar um registro em um banco de dados, modificar um arquivo, ou qualquer outra ação que tenha efeito de modificar algo permanentemente.
+
+Para esse caso, a linguagem de schema prevê um tipo raiz diferente do `Query` que viemos usando até agora. Qualquer operação de escrita se chama uma mutação em GraphQL e o tipo raiz que contém todas as mutações se chama `Mutation`:
+
+Vamos dizer que para a nossa API de mensagem do dia, qualquer um pode atualizar a mensagem do dia, e qualquer um pode ler a última mensagem atualizada. O schema GraphQL para isso é:
+
+```
+type Mutation {
+  setMessage(message: String): String
+}
+ 
+type Query {
+  getMessage: String
+}
+```
+
+É comum ter uma mutação que mapeia para uma operação de criação ou atualização de dados, como `setMessage`, retornar a mesma coisa que o servidor armazenou. Desta forma, se você modificar os dados no servidor, o cliente vai ficar sabendo da modificação. Um exemplo bom disso, é na criação de um novo registro, o servidor retorna o mesmo registro, mas com o campo ID preenchido.
+
+Ambas mutações e queries podem ser implementadas em resolvers no objeto raiz:
+
+```
+const fakeDatabase = {};
+const root = {
+  setMessage: ({message}) => {
+    fakeDatabase.message = message;
+    return message;
+  },
+  getMessage: () => {
+    return fakeDatabase.message;
+  }
+};
+```
+
+Isso é tudo que é necessário para implementar mutações. Porém em muitos casos, você vai ter várias mutações que aceitam os mesmos argumentos. Um exemplo comum é que criar um objeto e atualizá-lo recebem os mesmos argumentos. Para tornar o schema mais simples, podemos usar tipos de input ("input types") para isso, usando a keyword `input` ao invés da keyword `type`.
+
+Por exemplo, ao invés de ter uma única mensagem do dia, vamos dizer que vamos ter múltiplas, indexadas pelo campo id, e que cada mensagem tem um conteúdo do tipo string e um author tanbém string. Queremos uma mutação para criar uma nova mensagem, e outra para atualizar uma antiga. Nosso schema pode ser:
+
+```
+input MessageInput {
+  content: String
+  author: String
+}
+ 
+type Message {
+  id: ID!
+  content: String
+  author: String
+}
+ 
+type Query {
+  getMessage(id: ID!): Message
+}
+ 
+type Mutation {
+  createMessage(input: MessageInput): Message
+  updateMessage(id: ID!, input: MessageInput): Message
+}
+```
+
+Aqui, as mutações retornam um tipo `Message`, logo o cliente tem mais informação sobre a mensagem recém modificada na mesma request que a altera.
+
+Tipos input não podem ter campos que apontem para outros objetos, só tipos escalares, tipos de lista e outros input types.
+
+Nomear input types com Input no sufixo é uma convenção útil, porque frequentemente você vai ter ao mesmo tempo um input type e um tipo de saída que são parecidos.
+
+Vamos mudar nosso `index.js`:
+
+```
+const express = require('express')
+const { graphqlHTTP } = require('express-graphql')
+const { buildSchema } = require('graphql')
+
+// Novamente mesma função para construir nosso schema
+const schema = buildSchema(`
+  input MessageInput {
+    content: String
+    author: String
+  }
+
+  type Message {
+    id: ID!
+    content: String
+    author: String
+  }
+
+  type Query {
+    getMessage(id: ID!): Message
+  }
+
+  type Mutation {
+    createMessage(input: MessageInput): Message
+    updateMessage(id: ID!, input: MessageInput): Message
+  }
+`)
+
+// Se o tipo Message tivesse qualquer campo complexo (métodos),
+// colocaríamos nessa classe.
+class Message {
+  constructor(id, { content, author }) {
+    this.id = id
+    this.content = content
+    this.author = author
+  }
+}
+
+// Mapeia username ao conteúdo
+var fakeDatabase = {}
+
+var root = {
+  getMessage: ({ id }) => {
+    if (!fakeDatabase[id]) {
+      throw new Error(`Não existem mensagens com id ${id}`)
+    }
+    return new Message(id, fakeDatabase[id])
+  },
+  createMessage: ({ input }) => {
+    // Cria uma id aleatório para o nosso "banco de dados".
+    const id = require('crypto').randomBytes(10).toString('hex')
+
+    fakeDatabase[id] = input
+    return new Message(id, input)
+  },
+  updateMessage: ({ id, input }) => {
+    if (!fakeDatabase[id]) {
+      throw new Error(`Não existem mensagens com id ${id} para alterar`)
+    }
+    // Isso substitui o dado anterior completamente.
+    fakeDatabase[id] = input
+    return new Message(id, input)
+  },
+}
+
+// Agora configuramos o express para usar o nosso schema GraphQL
+const app = express()
+app.use(
+  '/graphql',
+  graphqlHTTP({
+    schema: schema,
+    rootValue: root,
+    graphiql: true,
+  })
+)
+app.listen(4000)
+
+console.log('API GraphQL está rodando em http://localhost:4000/graphql...')
+console.log()
+console.log(
+  'Para acessar o GraphiQL basta colocar http://localhost:4000/graphql no seu browser.'
+)
+```
+
+Para chamar uma mutação, é necessário usar a keyword `mutation` antes da sua query GraphQL. Para passar um input type, basta formatar com um objeto JSON. Por exemplo, após rodar `node index.js`, basta usar a query abaixo no GraphiQL:
+
+![GraphiQL](/graphiql6.png)
+
+Após rodar essa query, podemos facilmente obter mais dados sobre a mensagem, usando a query abaixo:
+
+![GraphiQL](/graphiql7.png)
+
+Podemos também usar variáveis para simplicar a query de mutação assim como fizemos com as queries. Por exemplo, vamos mudar o nosso `client.js` para executar a mutação com variáveis:
+
+```
+const fetch = require('node-fetch')
+const author = 'heynemann' // PUT YOUR NAME HERE :)
+const content = 'knowledge is power'
+var query = `mutation CreateMessage($input: MessageInput) {
+  createMessage(input: $input) {
+    id
+  }
+}`
+
+fetch('http://localhost:4000/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+  body: JSON.stringify({
+    query,
+    variables: {
+      input: {
+        author,
+        content,
+      },
+    },
+  }),
+})
+  .then((r) => r.json())
+  .then((data) => console.log('resultado:', data))
+```
+
+Após rodar `node index.js` em uma aba, se rodarmos `node client.js` em outra, devemos ver um resultado similar ao abaixo:
+
+```
+resultado: { data: { createMessage: { id: '3237f22c24451b1961d9' } } }
+```
+
+Cada nova execução, vai criar uma nova mensagem com um novo ID.
+
+## Conclusão
+
+Ainda tem muito aprendizado pela frente para você usar GraphQL em produção para casos reais, por exemplo autenticação e autorização, mas espero que essa tenha sido uma boa introdução de como usar essa linguagem para desacoplar clientes e servidores de forma eficaz.
