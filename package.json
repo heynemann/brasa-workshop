@@ -5,5 +5,14 @@
   "main": "index.js",
   "repository": "git@github.com:heynemann/brasa-workshop.git",
   "author": "Bernardo Heynemann <heynemann@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "eslint": "^7.23.0",
+    "prettier": "^2.2.1"
+  },
+  "scripts": {
+    "dev": "node index.js"
+  }
 }
