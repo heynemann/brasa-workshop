@@ -74,6 +74,8 @@ app.use(
 )
 app.listen(4000)
 
+qweqweqweqwe
+
 console.log('API GraphQL está rodando em http://localhost:4000/graphql...')
 console.log()
 console.log(
